@@ -1,0 +1,110 @@
+import { useEffect } from "react";
+import { useParams, Link } from "wouter";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useGetRoom } from "@workspace/api-client-react";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { useEditorStore } from "@/store/use-editor-store";
+import { ActivityBar } from "@/components/editor/ActivityBar";
+import { FileExplorer } from "@/components/editor/FileExplorer";
+import { CodeEditor } from "@/components/editor/CodeEditor";
+import { TerminalPanel } from "@/components/editor/TerminalPanel";
+import { RightSidebar } from "@/components/editor/RightSidebar";
+import { Loader2, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export default function RoomPage() {
+  const { roomId } = useParams<{ roomId: string }>();
+  const { data: room, isLoading, isError } = useGetRoom(roomId!);
+  
+  const { isConnected, activeTypers, emitCodeChange, emitTyping, emitRunCode } = useWebSocket(roomId || null);
+  const { isTerminalOpen, addTerminalOutput } = useEditorStore();
+
+  useEffect(() => {
+    if (isConnected) {
+      addTerminalOutput({
+        text: `Connected to workspace server. Joining room: ${room?.name || roomId}...`,
+        type: 'success'
+      });
+    }
+  }, [isConnected, room?.name, roomId]);
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground font-mono">Initializing workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !room) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-background">
+        <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Room not found</h1>
+        <p className="text-muted-foreground mb-6">The workspace you're trying to join doesn't exist or you lack permissions.</p>
+        <Link href="/">
+          <Button variant="default">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen w-full flex bg-background overflow-hidden text-foreground">
+      {/* Far Left Activity Bar */}
+      <ActivityBar />
+
+      {/* Main Resizable Layout */}
+      <div className="flex-1 h-full w-full">
+        <PanelGroup direction="horizontal">
+          {/* File Explorer Panel */}
+          <Panel defaultSize={15} minSize={10} maxSize={30}>
+            <FileExplorer roomId={roomId!} />
+          </Panel>
+          
+          <PanelResizeHandle className="w-1 bg-border/50 hover:bg-primary/50 transition-colors cursor-col-resize active:bg-primary" />
+          
+          {/* Editor & Terminal Center Panel */}
+          <Panel defaultSize={65} minSize={30}>
+            <PanelGroup direction="vertical">
+              <Panel defaultSize={70}>
+                <CodeEditor 
+                  roomId={roomId!} 
+                  emitCodeChange={emitCodeChange} 
+                  emitTyping={emitTyping}
+                  emitRunCode={emitRunCode}
+                />
+              </Panel>
+              
+              {isTerminalOpen && (
+                <>
+                  <PanelResizeHandle className="h-1 bg-border/50 hover:bg-primary/50 transition-colors cursor-row-resize active:bg-primary" />
+                  <Panel defaultSize={30} minSize={10}>
+                    <TerminalPanel />
+                  </Panel>
+                </>
+              )}
+              {!isTerminalOpen && (
+                <div className="h-8 shrink-0">
+                  <TerminalPanel />
+                </div>
+              )}
+            </PanelGroup>
+          </Panel>
+          
+          <PanelResizeHandle className="w-1 bg-border/50 hover:bg-primary/50 transition-colors cursor-col-resize active:bg-primary" />
+          
+          {/* Right Members Sidebar */}
+          <Panel defaultSize={20} minSize={15} maxSize={30}>
+            <RightSidebar room={room} activeTypers={activeTypers} />
+          </Panel>
+        </PanelGroup>
+      </div>
+    </div>
+  );
+}

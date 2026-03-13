@@ -1,0 +1,238 @@
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { useListRooms, useCreateRoom, useListUsers } from "@workspace/api-client-react";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Terminal, Search, Users, Activity, Code2, LogOut } from "lucide-react";
+import { UserAvatar } from "@/components/UserAvatar";
+import { ThemeToggle } from "@/components/ThemeToggle";
+
+export default function Home() {
+  const [, setLocation] = useLocation();
+  const { user, login, logout } = useAuth();
+  const { data: rooms = [], refetch: refetchRooms } = useListRooms();
+  const { data: users = [] } = useListUsers();
+  const { mutateAsync: createRoom, isPending: isCreating } = useCreateRoom();
+  
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newRoomName, setNewRoomName] = useState("");
+  const [loginName, setLoginName] = useState("");
+
+  const handleCreateRoom = async () => {
+    if (!newRoomName) return;
+    try {
+      const room = await createRoom({ 
+        data: { name: newRoomName, language: 'javascript', description: 'New workspace' } 
+      });
+      setIsCreateOpen(false);
+      refetchRooms();
+      setLocation(`/room/${room.id}`);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginName.trim()) {
+      await login(loginName.trim());
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img 
+            src={`${import.meta.env.BASE_URL}images/home-hero.png`} 
+            alt="Hero abstract tech background" 
+            className="w-full h-full object-cover opacity-20 dark:opacity-40"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
+        </div>
+        
+        <Card className="w-full max-w-md z-10 border-border/50 shadow-2xl backdrop-blur-sm bg-card/80">
+          <CardContent className="pt-8 pb-8 px-8">
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary border border-primary/30 shadow-[0_0_30px_rgba(88,101,242,0.3)]">
+                <Terminal className="w-8 h-8" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-center mb-2 font-display">CodeCollab</h1>
+            <p className="text-center text-muted-foreground mb-8">Enter your identity to join the workspace.</p>
+            
+            <form onSubmit={handleLogin} className="space-y-4">
+              <Input 
+                placeholder="Choose a username..." 
+                value={loginName}
+                onChange={e => setLoginName(e.target.value)}
+                className="h-12 text-lg bg-background/50 border-primary/20 focus-visible:ring-primary"
+              />
+              <Button type="submit" className="w-full h-12 text-lg font-medium shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
+                Enter Platform
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex text-foreground">
+      {/* Left Sidebar - Friends/Status */}
+      <div className="w-72 bg-sidebar border-r border-border/50 flex flex-col">
+        <div className="p-4 border-b border-border/50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">C</div>
+            <span className="font-bold text-lg tracking-tight">CodeCollab</span>
+          </div>
+        </div>
+        
+        <div className="p-4">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input className="pl-9 h-9 bg-background border-none focus-visible:ring-1" placeholder="Find or start a conversation" />
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-2">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2 flex items-center justify-between">
+            Online Users
+            <Activity className="w-3.5 h-3.5" />
+          </h3>
+          <div className="space-y-1">
+            {users.filter(u => u.id !== user.id).map(u => (
+              <div key={u.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 cursor-pointer transition-colors group">
+                <UserAvatar user={u} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate group-hover:text-foreground">{u.username}</p>
+                  <p className="text-xs text-muted-foreground capitalize truncate">{u.status || 'Active'}</p>
+                </div>
+              </div>
+            ))}
+            {users.length <= 1 && (
+              <p className="text-sm text-muted-foreground px-2 py-4 italic">No one else is online right now.</p>
+            )}
+          </div>
+        </div>
+        
+        {/* User Profile Area */}
+        <div className="p-3 bg-background/50 border-t border-border/50 flex items-center justify-between mt-auto">
+          <div className="flex items-center gap-3">
+            <UserAvatar user={user} showStatus />
+            <div className="flex flex-col">
+              <span className="text-sm font-bold leading-none mb-1">{user.username}</span>
+              <span className="text-xs text-muted-foreground leading-none">Online</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={logout} title="Log out">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content - Rooms */}
+      <div className="flex-1 flex flex-col">
+        <div className="h-16 border-b border-border/50 flex items-center justify-between px-8 bg-card/30 backdrop-blur-md sticky top-0 z-10">
+          <h2 className="text-xl font-bold flex items-center">
+            <Users className="w-5 h-5 mr-3 text-primary" />
+            Active Workspaces
+          </h2>
+          
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 font-medium">
+                <Plus className="w-4 h-4 mr-2" /> New Workspace
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md border-border/50">
+              <DialogHeader>
+                <DialogTitle>Create a new workspace</DialogTitle>
+              </DialogHeader>
+              <div className="py-4">
+                <label className="text-sm font-medium mb-2 block">Workspace Name</label>
+                <Input 
+                  placeholder="e.g. NextJS E-commerce, Rust API..." 
+                  value={newRoomName}
+                  onChange={e => setNewRoomName(e.target.value)}
+                  className="bg-muted/50"
+                  autoFocus
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreateRoom} disabled={!newRoomName || isCreating}>
+                  {isCreating ? "Creating..." : "Create Workspace"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="p-8 flex-1 overflow-y-auto bg-background/50">
+          {rooms.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center border-2 border-dashed border-border rounded-2xl bg-card/20">
+              <Code2 className="w-12 h-12 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-medium mb-1">No workspaces yet</h3>
+              <p className="text-muted-foreground mb-4 max-w-sm">Create a workspace to start collaborating on code in real-time with your team.</p>
+              <Button variant="secondary" onClick={() => setIsCreateOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Create your first workspace
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {rooms.map(room => (
+                <Link key={room.id} href={`/room/${room.id}`}>
+                  <Card className="hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 cursor-pointer group bg-card border-border/50 h-full flex flex-col">
+                    <CardContent className="p-6 flex flex-col h-full">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-inner">
+                          <Terminal className="w-6 h-6" />
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-mono font-medium">
+                          {room.language}
+                        </span>
+                      </div>
+                      
+                      <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors line-clamp-1">{room.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-6 line-clamp-2 flex-1">
+                        {room.description || 'A collaborative coding workspace.'}
+                      </p>
+                      
+                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
+                        <div className="flex -space-x-2">
+                          {room.members?.slice(0, 4).map((m, i) => (
+                            <UserAvatar key={i} user={m} showStatus={false} className="w-8 h-8 border-2 border-card" />
+                          ))}
+                          {(!room.members || room.members.length === 0) && (
+                            <span className="text-xs text-muted-foreground italic">Empty room</span>
+                          )}
+                          {(room.members?.length || 0) > 4 && (
+                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium border-2 border-card z-10">
+                              +{(room.members?.length || 0) - 4}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs font-medium text-muted-foreground flex items-center">
+                          <Users className="w-3.5 h-3.5 mr-1" />
+                          {room.members?.length || 0} active
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

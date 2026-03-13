@@ -1,0 +1,96 @@
+import { create } from 'zustand';
+import { type FileNode } from '@workspace/api-client-react';
+
+export interface Tab {
+  id: string;
+  file: FileNode;
+  isDirty?: boolean;
+}
+
+export interface TerminalOutput {
+  id: string;
+  text: string;
+  type: 'info' | 'error' | 'success' | 'system';
+  timestamp: number;
+}
+
+interface EditorState {
+  tabs: Tab[];
+  activeTabId: string | null;
+  terminalOutputs: TerminalOutput[];
+  isTerminalOpen: boolean;
+  leftPanelWidth: number;
+  
+  // Actions
+  openFile: (file: FileNode) => void;
+  closeTab: (tabId: string) => void;
+  setActiveTab: (tabId: string) => void;
+  markTabDirty: (tabId: string, isDirty: boolean) => void;
+  updateFileContent: (fileId: string, content: string) => void;
+  
+  addTerminalOutput: (output: Omit<TerminalOutput, 'id' | 'timestamp'>) => void;
+  clearTerminal: () => void;
+  toggleTerminal: () => void;
+  setLeftPanelWidth: (width: number) => void;
+}
+
+export const useEditorStore = create<EditorState>((set, get) => ({
+  tabs: [],
+  activeTabId: null,
+  terminalOutputs: [{
+    id: 'welcome',
+    text: 'CodeCollab Terminal v1.0.0\nConnecting to collaborative session...',
+    type: 'system',
+    timestamp: Date.now()
+  }],
+  isTerminalOpen: true,
+  leftPanelWidth: 20,
+
+  openFile: (file) => {
+    const { tabs } = get();
+    const existingTab = tabs.find(t => t.id === file.id);
+    
+    if (existingTab) {
+      set({ activeTabId: file.id });
+    } else {
+      set({ 
+        tabs: [...tabs, { id: file.id, file }], 
+        activeTabId: file.id 
+      });
+    }
+  },
+
+  closeTab: (tabId) => {
+    const { tabs, activeTabId } = get();
+    const newTabs = tabs.filter(t => t.id !== tabId);
+    let newActiveId = activeTabId;
+    
+    if (activeTabId === tabId) {
+      newActiveId = newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null;
+    }
+    
+    set({ tabs: newTabs, activeTabId: newActiveId });
+  },
+
+  setActiveTab: (tabId) => set({ activeTabId: tabId }),
+  
+  markTabDirty: (tabId, isDirty) => set((state) => ({
+    tabs: state.tabs.map(t => t.id === tabId ? { ...t, isDirty } : t)
+  })),
+
+  updateFileContent: (fileId, content) => set((state) => ({
+    tabs: state.tabs.map(t => t.id === fileId ? { ...t, file: { ...t.file, content } } : t)
+  })),
+
+  addTerminalOutput: (output) => set((state) => ({
+    terminalOutputs: [...state.terminalOutputs, {
+      ...output,
+      id: Math.random().toString(36).substring(7),
+      timestamp: Date.now()
+    }]
+  })),
+
+  clearTerminal: () => set({ terminalOutputs: [] }),
+  toggleTerminal: () => set((state) => ({ isTerminalOpen: !state.isTerminalOpen })),
+  setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
+}));
